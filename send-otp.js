@@ -1,10 +1,20 @@
-// /api/send-otp — generates a 6-digit OTP, stores it in Vercel KV,
+// /api/send-otp — generates a 6-digit OTP, stores it in Firebase Firestore,
 // and asks OneSignal to push it to the device linked to this phone number.
 
-import { kv } from '@vercel/kv';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-const OTP_TTL_SECONDS = 5 * 60;        // OTP valid for 5 minutes
-const RESEND_COOLDOWN_SECONDS = 45;    // must wait 45s between sends
+const OTP_TTL_MS = 5 * 60 * 1000;       // OTP valid for 5 minutes
+const RESEND_COOLDOWN_MS = 45 * 1000;   // must wait 45s between sends
+
+function getDb() {
+  if (!getApps().length) {
+    // FIREBASE_SERVICE_ACCOUNT env var holds the full JSON key as one string
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    initializeApp({ credential: cert(serviceAccount) });
+  }
+  return getFirestore();
+}
 
 function normalizePhone(raw) {
   const str = String(raw || '').trim();
@@ -29,17 +39,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Valid 10-digit phone number chahiye.' });
   }
 
-  const otpKey = `otp:${phone}`;
-  const cooldownKey = `otp-cooldown:${phone}`;
+  const db = getDb();
+  const ref = db.collection('otps').doc(phone);
+  const snap = await ref.get();
+  const now = Date.now();
 
-  const onCooldown = await kv.get(cooldownKey);
-  if (onCooldown) {
-    return res.status(429).json({ error: 'Thoda ruko, kuch second baad dobara try karo.' });
+  if (snap.exists) {
+    const data = snap.data();
+    if (data.createdAt && now - data.createdAt < RESEND_COOLDOWN_MS) {
+      const wait = Math.ceil((RESEND_COOLDOWN_MS - (now - data.createdAt)) / 1000);
+      return res.status(429).json({ error: `Thoda ruko, ${wait}s baad dobara try karo.` });
+    }
   }
 
   const otp = generateOtp();
-  await kv.set(otpKey, JSON.stringify({ otp, attempts: 0 }), { ex: OTP_TTL_SECONDS });
-  await kv.set(cooldownKey, '1', { ex: RESEND_COOLDOWN_SECONDS });
+  await ref.set({ otp, createdAt: now, expiresAt: now + OTP_TTL_MS, attempts: 0 });
 
   try {
     const resp = await fetch('https://onesignal.com/api/v1/notifications', {
@@ -59,8 +73,7 @@ export default async function handler(req, res) {
     const result = await resp.json();
 
     if (!(result.recipients > 0)) {
-      await kv.del(otpKey);
-      await kv.del(cooldownKey);
+      await ref.delete();
       return res.status(412).json({
         error: 'Push notification deliver nahi hui. Notification permission allow karo, phir dobara try karo.',
       });

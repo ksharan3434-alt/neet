@@ -2,6 +2,6 @@
   "name": "science-world-otp-login",
   "private": true,
   "dependencies": {
-    "@vercel/kv": "^2.0.0"
+    "firebase-admin": "^12.6.0"
   }
 }
