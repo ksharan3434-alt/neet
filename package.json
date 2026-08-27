@@ -1,0 +1,7 @@
+{
+  "name": "science-world-otp-login",
+  "private": true,
+  "dependencies": {
+    "@vercel/kv": "^2.0.0"
+  }
+}
