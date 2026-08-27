@@ -797,7 +797,7 @@ async function verifyOtpFn(phone, otp){
 }
 
 // ---------- Elements ----------
-const backdrop = document.getElementById('otpModalBackdrop');
+const otpBackdrop = document.getElementById('otpModalBackdrop');
 const openBtn = document.getElementById('openLoginBtn');
 const openBtnMobile = document.getElementById('openLoginBtnMobile');
 const closeBtn = document.getElementById('otpModalClose');
@@ -822,19 +822,19 @@ let currentPhone = null;
 let resendTimer = null;
 
 function openModal(){
-  backdrop.classList.add('open');
+  otpBackdrop.classList.add('open');
   stepPhone.classList.add('active');
   stepCode.classList.remove('active');
   phoneNote.textContent = '';
   phoneInput.value = '';
   phoneInput.focus();
 }
-function closeModal(){ backdrop.classList.remove('open'); }
+function closeModal(){ otpBackdrop.classList.remove('open'); }
 
 openBtn?.addEventListener('click', openModal);
 openBtnMobile?.addEventListener('click', () => { document.getElementById('backdrop').click(); openModal(); });
 closeBtn.addEventListener('click', closeModal);
-backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
+otpBackdrop.addEventListener('click', (e) => { if (e.target === otpBackdrop) closeModal(); });
 
 function setBtnLoading(btn, loading, label){
   btn.disabled = loading;
